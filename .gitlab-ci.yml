@@ -234,8 +234,9 @@ deploy_docker_all:
         - if [ "$CI_COMMIT_REF_NAME" = "master" ]; then TAG="latest"; else TAG="$CI_COMMIT_REF_NAME"; fi
         - if [ "$CI_PROJECT_NAMESPACE" = "anduin" ]; then HUB_NAMESPACE="anduin2019"; else HUB_NAMESPACE="$CI_PROJECT_NAMESPACE"; fi
 
-        - LOCAL_TARGET_COM="hub.aiursoft.com/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME:$TAG"
-        - PUBLIC_TARGET="$HUB_NAMESPACE/$CI_PROJECT_NAME:$TAG"
+        - PROJECT_NAME=$(echo "$CI_PROJECT_NAME" | tr '[:upper:]' '[:lower:]')
+        - LOCAL_TARGET_COM="hub.aiursoft.com/$CI_PROJECT_NAMESPACE/$PROJECT_NAME:$TAG"
+        - PUBLIC_TARGET="$HUB_NAMESPACE/$PROJECT_NAME:$TAG"
 
         - echo "$LOCAL_DOCKER_PASSWORD" | docker login hub.aiursoft.com -u "$LOCAL_DOCKER_USERNAME" --password-stdin
         - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
