@@ -32,7 +32,7 @@ internal sealed class Scanner(
 
         store.Remember(activeNames.Concat(store.PendingNames()));
 
-        var missing = store.KnownNames().Except(tables).OrderBy(x => x).ToList();
+        var missing = store.KnownNames().Except(tables).OrderBy(x => x, StringComparer.Ordinal).ToList();
         foreach (var missingTable in missing)
         {
             log.LogError("Known table {Table} missing from discovery; monitoring coverage lost", missingTable);

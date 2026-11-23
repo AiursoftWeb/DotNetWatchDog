@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Globalization;
 using ClickHouse.Client.ADO;
 
 namespace Aiursoft.DotNetWatchDog;
@@ -26,7 +27,7 @@ internal sealed class ClickHouseLogReader(Settings settings)
         await using var cmdDb = conn.CreateCommand();
         cmdDb.CommandText = "SELECT count() AS n FROM system.databases WHERE name = @db;";
         AddParam(cmdDb, "db", settings.Database);
-        var dbCount = Convert.ToInt32(await cmdDb.ExecuteScalarAsync(ct));
+        var dbCount = Convert.ToInt32(await cmdDb.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
         if (dbCount != 1)
         {
             throw new InvalidOperationException($"Database '{settings.Database}' not found or inaccessible");
@@ -100,9 +101,9 @@ internal sealed class ClickHouseLogReader(Settings settings)
             throw new InvalidOperationException($"Failed to query error counts for table '{table}'");
         }
 
-        var error = Convert.ToInt32(reader.GetValue(0));
-        var critical = Convert.ToInt32(reader.GetValue(1));
-        var total = Convert.ToInt32(reader.GetValue(2));
+        var error = Convert.ToInt32(reader.GetValue(0), CultureInfo.InvariantCulture);
+        var critical = Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture);
+        var total = Convert.ToInt32(reader.GetValue(2), CultureInfo.InvariantCulture);
 
         if (error + critical != total)
         {
@@ -154,8 +155,8 @@ internal sealed class ClickHouseLogReader(Settings settings)
         var samples = new List<LogSample>();
         while (await sampleReader.ReadAsync(ct))
         {
-            var eventTime = Convert.ToDateTime(sampleReader.GetValue(0));
-            var logLevel = Convert.ToInt32(sampleReader.GetValue(1));
+            var eventTime = Convert.ToDateTime(sampleReader.GetValue(0), CultureInfo.InvariantCulture);
+            var logLevel = Convert.ToInt32(sampleReader.GetValue(1), CultureInfo.InvariantCulture);
             string? category = null;
             string? message = null;
             string? exception = null;
