@@ -36,7 +36,7 @@ public class StateStoreTests
     {
         using (new StateStore(CreateSettings()))
         {
-            Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "state.sqlite3")));
+            Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "scope.json")));
             Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "monitor.lock")));
         }
 

@@ -37,6 +37,5 @@
   <ItemGroup>
     <PackageReference Include="Aiursoft.AlertCenter.SDK" Version="10.10.6" />
     <PackageReference Include="Aiursoft.ClickhouseSdk" Version="10.0.30" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
   </ItemGroup>
 </Project>

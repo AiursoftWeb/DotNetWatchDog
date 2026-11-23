@@ -1,12 +1,16 @@
 using System.Text.Json;
-using Microsoft.Data.Sqlite;
 
 namespace Aiursoft.DotNetWatchDog;
 
 internal sealed class StateStore : IDisposable
 {
     private readonly FileStream _lockStream;
-    private readonly SqliteConnection _db;
+    private readonly string _knownTablesPath;
+    private readonly string _pendingPath;
+    private readonly object _sync = new();
+
+    private HashSet<string>? _knownTables;
+    private Dictionary<string, string>? _pending;
 
     public StateStore(Settings settings)
     {
@@ -14,134 +18,158 @@ internal sealed class StateStore : IDisposable
         var lockPath = Path.Combine(settings.DataDirectory, "monitor.lock");
         _lockStream = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
 
-        var dbPath = Path.Combine(settings.DataDirectory, "state.sqlite3");
-        var connectionStringBuilder = new SqliteConnectionStringBuilder
-        {
-            DataSource = dbPath,
-            Mode = SqliteOpenMode.ReadWriteCreate
-        };
-
-        _db = new SqliteConnection(connectionStringBuilder.ConnectionString);
-        _db.Open();
-
-        using (var cmd = _db.CreateCommand())
-        {
-            cmd.CommandText = "PRAGMA quick_check;";
-            var checkResult = cmd.ExecuteScalar()?.ToString();
-            if (checkResult != "ok")
-            {
-                throw new InvalidOperationException("State integrity check failed");
-            }
-        }
-
-        using (var cmd = _db.CreateCommand())
-        {
-            cmd.CommandText = "CREATE TABLE IF NOT EXISTS config (scope TEXT NOT NULL);";
-            cmd.ExecuteNonQuery();
-        }
+        var scopePath = Path.Combine(settings.DataDirectory, "scope.json");
+        _knownTablesPath = Path.Combine(settings.DataDirectory, "known_tables.json");
+        _pendingPath = Path.Combine(settings.DataDirectory, "pending.json");
 
         var expectedScope = JsonSerializer.Serialize(new[] { settings.NodeName, settings.Database });
-        string? existingScope;
-        using (var cmd = _db.CreateCommand())
+        if (File.Exists(scopePath))
         {
-            cmd.CommandText = "SELECT scope FROM config LIMIT 1;";
-            existingScope = cmd.ExecuteScalar()?.ToString();
+            var existingScope = File.ReadAllText(scopePath);
+            if (existingScope != expectedScope)
+            {
+                throw new InvalidOperationException("State directory scope changed");
+            }
         }
-
-        if (existingScope != null && existingScope != expectedScope)
+        else
         {
-            throw new InvalidOperationException("State directory scope changed");
+            AtomicWrite(scopePath, new[] { settings.NodeName, settings.Database });
         }
+    }
 
-        if (existingScope == null)
+    private HashSet<string> KnownTables
+    {
+        get
         {
-            using var cmd = _db.CreateCommand();
-            cmd.CommandText = "INSERT INTO config VALUES ($scope);";
-            cmd.Parameters.AddWithValue("$scope", expectedScope);
-            cmd.ExecuteNonQuery();
+            lock (_sync)
+            {
+                if (_knownTables != null) return _knownTables;
+                if (File.Exists(_knownTablesPath))
+                {
+                    try
+                    {
+                        var list = JsonSerializer.Deserialize<List<string>>(File.ReadAllBytes(_knownTablesPath));
+                        _knownTables = new HashSet<string>(list ?? [], StringComparer.Ordinal);
+                    }
+                    catch
+                    {
+                        _knownTables = new HashSet<string>(StringComparer.Ordinal);
+                    }
+                }
+                else
+                {
+                    _knownTables = new HashSet<string>(StringComparer.Ordinal);
+                }
+                return _knownTables;
+            }
         }
+    }
 
-        using (var cmd = _db.CreateCommand())
+    private Dictionary<string, string> PendingMap
+    {
+        get
         {
-            cmd.CommandText = """
-                CREATE TABLE IF NOT EXISTS pending (name TEXT PRIMARY KEY, payload TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS known_tables (name TEXT PRIMARY KEY);
-                """;
-            cmd.ExecuteNonQuery();
+            lock (_sync)
+            {
+                if (_pending != null) return _pending;
+                if (File.Exists(_pendingPath))
+                {
+                    try
+                    {
+                        _pending = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllBytes(_pendingPath))
+                            ?? new Dictionary<string, string>(StringComparer.Ordinal);
+                    }
+                    catch
+                    {
+                        _pending = new Dictionary<string, string>(StringComparer.Ordinal);
+                    }
+                }
+                else
+                {
+                    _pending = new Dictionary<string, string>(StringComparer.Ordinal);
+                }
+                return _pending;
+            }
         }
     }
 
     internal HashSet<string> KnownNames()
     {
-        var result = new HashSet<string>(StringComparer.Ordinal);
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT name FROM known_tables;";
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
+        lock (_sync)
         {
-            result.Add(reader.GetString(0));
+            return [.. KnownTables];
         }
-        return result;
     }
 
     internal void Remember(IEnumerable<string> names)
     {
-        using var transaction = _db.BeginTransaction();
-        using var cmd = _db.CreateCommand();
-        cmd.Transaction = transaction;
-        cmd.CommandText = "INSERT OR IGNORE INTO known_tables VALUES ($name);";
-        var param = cmd.Parameters.Add("$name", SqliteType.Text);
-
-        foreach (var name in names)
+        lock (_sync)
         {
-            param.Value = name;
-            cmd.ExecuteNonQuery();
-        }
+            var modified = false;
+            foreach (var name in names)
+            {
+                if (KnownTables.Add(name))
+                {
+                    modified = true;
+                }
+            }
 
-        transaction.Commit();
+            if (modified)
+            {
+                AtomicWrite(_knownTablesPath, KnownTables.ToList());
+            }
+        }
     }
 
     internal List<string> PendingNames()
     {
-        var result = new List<string>();
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT name FROM pending;";
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
+        lock (_sync)
         {
-            result.Add(reader.GetString(0));
+            return [.. PendingMap.Keys];
         }
-        return result;
     }
 
     internal string? Pending(string name)
     {
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = "SELECT payload FROM pending WHERE name = $name;";
-        cmd.Parameters.AddWithValue("$name", name);
-        return cmd.ExecuteScalar()?.ToString();
+        lock (_sync)
+        {
+            return PendingMap.GetValueOrDefault(name);
+        }
     }
 
     internal void Save(string name, string payloadJson)
     {
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = "INSERT OR REPLACE INTO pending VALUES ($name, $payload);";
-        cmd.Parameters.AddWithValue("$name", name);
-        cmd.Parameters.AddWithValue("$payload", payloadJson);
-        cmd.ExecuteNonQuery();
+        lock (_sync)
+        {
+            PendingMap[name] = payloadJson;
+            AtomicWrite(_pendingPath, PendingMap);
+        }
     }
 
     internal void Delete(string name)
     {
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = "DELETE FROM pending WHERE name = $name;";
-        cmd.Parameters.AddWithValue("$name", name);
-        cmd.ExecuteNonQuery();
+        lock (_sync)
+        {
+            if (PendingMap.Remove(name))
+            {
+                AtomicWrite(_pendingPath, PendingMap);
+            }
+        }
+    }
+
+    private static void AtomicWrite<T>(string path, T value)
+    {
+        var temp = path + ".tmp";
+        using (var file = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            JsonSerializer.Serialize(file, value);
+            file.Flush(flushToDisk: true);
+        }
+        File.Move(temp, path, overwrite: true);
     }
 
     public void Dispose()
     {
-        _db.Dispose();
         _lockStream.Dispose();
     }
 }
