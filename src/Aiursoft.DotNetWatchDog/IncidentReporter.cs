@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Aiursoft.AlertCenter.SDK;
 using Aiursoft.AlertCenter.SDK.Models;
@@ -69,7 +70,7 @@ internal sealed class IncidentReporter(
         if (context != null)
         {
             var endStr = context.Value<string>("WindowEndUtc");
-            if (!string.IsNullOrEmpty(endStr) && DateTimeOffset.TryParse(endStr, out var end))
+            if (!string.IsNullOrEmpty(endStr) && DateTimeOffset.TryParse(endStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
             {
                 return end.ToUniversalTime();
             }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Newtonsoft.Json.Linq;
 
@@ -26,8 +27,8 @@ internal static class DiagnosticsBuilder
 
         var context = new JObject
         {
-            ["WindowStartUtc"] = start.ToString("O"),
-            ["WindowEndUtc"] = end.ToString("O"),
+            ["WindowStartUtc"] = start.ToString("O", CultureInfo.InvariantCulture),
+            ["WindowEndUtc"] = end.ToString("O", CultureInfo.InvariantCulture),
             ["WindowBounds"] = "[start, end)",
             ["ErrorCount"] = counts.Error,
             ["CriticalCount"] = counts.Critical,
@@ -105,8 +106,8 @@ internal static class DiagnosticsBuilder
             {
                 var parts = new List<string>
                 {
-                    RedactionHelper.Redact(sample.EventTime.ToString("yyyy-MM-dd HH:mm:ss.ffffff")),
-                    RedactionHelper.Redact(sample.LogLevel.ToString()),
+                    RedactionHelper.Redact(sample.EventTime.ToString("yyyy-MM-dd HH:mm:ss.ffffff", CultureInfo.InvariantCulture)),
+                    RedactionHelper.Redact(sample.LogLevel.ToString(CultureInfo.InvariantCulture)),
                     RedactionHelper.Redact(sample.Category),
                     RedactionHelper.Redact(sample.Message),
                     RedactionHelper.Redact(sample.Exception)

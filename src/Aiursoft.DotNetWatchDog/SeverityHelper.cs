@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Aiursoft.DotNetWatchDog;
 
 internal static class SeverityHelper
@@ -22,8 +24,8 @@ internal static class SeverityHelper
     {
         if (levelA.StartsWith("sev", StringComparison.OrdinalIgnoreCase) &&
             levelB.StartsWith("sev", StringComparison.OrdinalIgnoreCase) &&
-            int.TryParse(levelA.AsSpan(3), out var rankA) &&
-            int.TryParse(levelB.AsSpan(3), out var rankB))
+            int.TryParse(levelA.AsSpan(3), CultureInfo.InvariantCulture, out var rankA) &&
+            int.TryParse(levelB.AsSpan(3), CultureInfo.InvariantCulture, out var rankB))
         {
             return rankA < rankB; // sev2 < sev3 means sev2 is higher priority
         }
