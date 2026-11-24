@@ -1,8 +1,8 @@
 using System.Globalization;
-using System.Text.Json;
 using Aiursoft.AlertCenter.SDK;
 using Aiursoft.AlertCenter.SDK.Models;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace Aiursoft.DotNetWatchDog;
@@ -101,7 +101,7 @@ internal sealed class IncidentReporter(
         var pendingRaw = store.Pending(table);
         if (!string.IsNullOrEmpty(pendingRaw))
         {
-            var pending = JsonSerializer.Deserialize<CreateIncidentRequest>(pendingRaw)
+            var pending = JsonConvert.DeserializeObject<CreateIncidentRequest>(pendingRaw)
                 ?? throw new InvalidOperationException($"Corrupted pending payload for table '{table}'");
 
             if (matches.Count > 0 && matches[0].ReportId != pending.ReportId)
@@ -187,7 +187,7 @@ internal sealed class IncidentReporter(
                 }
             };
 
-            store.Save(table, JsonSerializer.Serialize(createRequest));
+            store.Save(table, JsonConvert.SerializeObject(createRequest));
             var resp = await api.CreateIncidentAsync(createRequest).WaitAsync(ct);
             var verified = (await api.GetIncidentAsync(resp.IncidentId).WaitAsync(ct)).Incident;
             if (verified.IncidentId != resp.IncidentId || verified.ReportId != createRequest.ReportId)
