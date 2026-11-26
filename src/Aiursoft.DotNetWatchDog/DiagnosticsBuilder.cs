@@ -53,7 +53,7 @@ internal static class DiagnosticsBuilder
 
             {counts.Total} errors in the last 15 minutes (Error: {counts.Error}; Critical: {counts.Critical}). Warnings excluded.
             {windowLabel} (UTC, start inclusive / end exclusive): {start:yyyy-MM-dd HH:mm:ss} to {end:yyyy-MM-dd HH:mm:ss}.
-            Checked every 5 minutes; automatically closes when the 15-minute count is zero.
+            Checked every 5 minutes; automatically mitigates when the 15-minute count is zero (final resolution remains a human decision).
 
 
             """));
