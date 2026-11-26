@@ -27,7 +27,7 @@ It succeeds and replaces the legacy `ClickHouseAppLogErrorMonitor` service with 
   - $\ge$ 5 errors: escalates to **Sev3**
   - $\ge$ 15 errors: escalates to **Sev2**
   - Severity is never downgraded; only upgraded upon increased error count.
-- **Automated Resolution**: Automatically resolves the AlertCenter incident when the 15-minute error count drops back to zero.
+- **Automated Mitigation**: Automatically mitigates the AlertCenter incident when the 15-minute error count drops back to zero, leaving final resolution to a human reviewer.
 - **Direct Investigation Links**: Provides pre-filled ClickHouse Play query URLs and detailed diagnostic SQL queries directly in incident notifications.
 - **Masked Sample Snippets**: Extracts up to 3 recent error call stacks and messages, automatically redacting authorization tokens, credentials, and sensitive parameters.
 - **Durable Local State**: Persists known table identities and pending incident receipts in local SQLite (`state.sqlite3`) with file-level process locking (`monitor.lock`) to ensure exactly-once alerting.
@@ -79,7 +79,7 @@ Configure the service using environment variables:
 | `CLICKHOUSE_CONNECTION_STRING` | Optional custom connection string overriding the URL/credentials above. | `""` |
 | `CLICKHOUSE_PUBLIC_URL` | Optional public URL to ClickHouse Play (e.g. `https://clickhouse-proart.aiursoft.com`). | `""` |
 | `ALERTCENTER_URL` | AlertCenter API base URL (e.g. `https://alertcenter.aiursoft.com`). | *Required* |
-| `ALERTCENTER_API_KEY` | AlertCenter API token with incident query, create, modify, and resolve permissions. | *Required* |
+| `ALERTCENTER_API_KEY` | AlertCenter API token with incident query, create, mitigate, and severity-change permissions. | *Required* |
 | `STATE_DIR` | Directory for persistent state and file locks. | `/data` |
 
 ## Health Check & CLI Commands

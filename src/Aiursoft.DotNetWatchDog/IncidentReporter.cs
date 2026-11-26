@@ -215,7 +215,7 @@ internal sealed class IncidentReporter(
                 throw new InvalidOperationException($"Incident identity changed unexpectedly during update for table '{table}'");
             }
 
-            if (current.Status is "resolved")
+            if (current.Status is "resolved" or "mitigated")
             {
                 return;
             }
@@ -223,7 +223,7 @@ internal sealed class IncidentReporter(
             string? action = null;
             if (counts.Total == 0)
             {
-                action = "resolve";
+                action = "mitigate";
             }
             else if (wantedSeverity != null && SeverityHelper.IsHigherSeverity(wantedSeverity, current.Level))
             {
@@ -237,14 +237,14 @@ internal sealed class IncidentReporter(
 
             try
             {
-                if (action == "resolve")
+                if (action == "mitigate")
                 {
-                    await api.ResolveIncidentAsync(current.IncidentId, new ResolveIncidentRequest
+                    await api.MitigateIncidentAsync(current.IncidentId, new MitigateIncidentRequest
                     {
                         Version = current.Version,
                         Reason = diagnosticText
                     }).WaitAsync(ct);
-                    log.LogInformation("Resolved incident {IncidentId} for table {Table} after 15-minute error count dropped to zero", current.IncidentId, table);
+                    log.LogInformation("Mitigated incident {IncidentId} for table {Table} after 15-minute error count dropped to zero", current.IncidentId, table);
                     return;
                 }
 
