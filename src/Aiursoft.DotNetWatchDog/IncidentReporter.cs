@@ -14,6 +14,9 @@ internal sealed class IncidentReporter(
     ClickHouseLogReader chReader,
     ILogger<IncidentReporter> log)
 {
+    private static bool IsActive(IncidentDetails incident) =>
+        incident.Status is not ("mitigated" or "resolved");
+
     internal async Task<List<IncidentDetails>> GetActiveIncidentsAsync(CancellationToken ct)
     {
         var active = new List<IncidentDetails>();
@@ -25,6 +28,7 @@ internal sealed class IncidentReporter(
 
         foreach (var sourceVal in sourcesToQuery)
         {
+            var seen = 0;
             for (var page = 1; ; page++)
             {
                 var result = await api.QueryIncidentsAsync(new QueryIncidentsRequest
@@ -36,15 +40,16 @@ internal sealed class IncidentReporter(
                     PageSize = 100
                 }).WaitAsync(ct);
 
+                seen += result.Items.Count;
                 foreach (var item in result.Items)
                 {
-                    if (active.All(x => x.IncidentId != item.IncidentId))
+                    if (IsActive(item) && active.All(x => x.IncidentId != item.IncidentId))
                     {
                         active.Add(item);
                     }
                 }
 
-                if (active.Count >= result.TotalCount || result.Items.Count == 0)
+                if (seen >= result.TotalCount || result.Items.Count == 0)
                 {
                     break;
                 }
@@ -91,7 +96,7 @@ internal sealed class IncidentReporter(
         DateTimeOffset nowUtc,
         CancellationToken ct)
     {
-        var matches = activeIncidents.Where(x => Matches(x, table)).ToList();
+        var matches = activeIncidents.Where(x => IsActive(x) && Matches(x, table)).ToList();
         if (matches.Count > 1)
         {
             throw new InvalidOperationException($"Duplicate active incident identity for table '{table}'");
